@@ -10,8 +10,6 @@
 
 {%- if dbtvault.is_list(columns) -%}
 
-    {%- set columns = columns | reject("none") %}
-
     {%- for col in columns -%}
 
         {%- if col is string -%}

@@ -27,7 +27,7 @@
     {%- set source_relation = ref(as_of_dates_table) -%}
 {%- endif -%}
 
-{%- set max_datetime = var('max_datetime', '9999-12-31 23:59:59.999999') -%}
+{%- set max_date = '9999-12-31 23:59:59.999' -%}
 {%- set ghost_pk = '0000000000000000' -%}
 {%- set ghost_date = '1990-01-01 00:00:00.000' -%}
 
@@ -61,7 +61,7 @@ last_safe_load_datetime AS (
         {{ "UNION ALL" if not loop.last }}
     {% endfor -%}
     {%- endfilter -%}
-    ) AS l
+    )
 ),
 
 as_of_grain_old_entries AS (
@@ -264,9 +264,9 @@ bridge AS (
         {%- for bridge_step in bridge_walk.keys() -%}
             {%- set bridge_end_date = bridge_walk[bridge_step]['bridge_end_date'] -%}
             {%- if loop.first %}
-    WHERE TO_DATE({{ bridge_end_date }}) = TO_DATE('{{ max_datetime }}')
+    WHERE TO_DATE({{ bridge_end_date }}) = TO_DATE('{{ max_date }}')
             {%- else %}
-        AND TO_DATE({{ bridge_end_date }}) = TO_DATE('{{ max_datetime }}')
+        AND TO_DATE({{ bridge_end_date }}) = TO_DATE('{{ max_date }}')
             {%- endif -%}
         {%- endfor %}
 )
