@@ -1,10 +1,10 @@
 {%- macro t_link(src_pk, src_fk, src_payload, src_eff, src_ldts, src_source, time_window_period, time_window_value, source_model) -%}
 
-    {{- adapter.dispatch('t_link', 'dbtvault')(src_pk=src_pk, src_fk=src_fk, src_payload=src_payload,
-                                               src_eff=src_eff, src_ldts=src_ldts, src_source=src_source,
-                                               time_window_period=time_window_period,
-                                               time_window_value=time_window_value,
-                                               source_model=source_model) -}}
+    {{- adapter.dispatch('t_link', packages = dbtvault.get_dbtvault_namespaces())(src_pk=src_pk, src_fk=src_fk, src_payload=src_payload,
+                                                                                    src_eff=src_eff, src_ldts=src_ldts, src_source=src_source,
+                                                                                    time_window_period=time_window_period,
+                                                                                    time_window_value=time_window_value,
+                                                                                    source_model=source_model) -}}
 
 {%- endmacro %}
 

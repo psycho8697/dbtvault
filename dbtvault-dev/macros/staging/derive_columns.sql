@@ -45,9 +45,9 @@
             {%- set column_str = dbtvault.as_constant(columns[col]) -%}
 
             {%- if dbtvault.is_constant(columns[col]) -%}
-                {%- do der_columns.append("CAST({} AS {}) AS {}".format(column_str, constant_cast, col) -%}
+                {%- do der_columns.append("CAST({} AS {}) AS {}".format(column_str, constant_cast, col)) -%}
             {%- else -%}
-                {%- do der_columns.append("{} AS {}".format(column_str, col) -%}
+                {%- do der_columns.append("{} AS {}".format(column_str, col)) -%}
             {%- endif -%}
 
             {%- do exclude_columns.append(col) -%}

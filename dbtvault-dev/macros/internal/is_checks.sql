@@ -34,15 +34,15 @@
 
 {%- macro is_constant(obj) -%}
 
-    {% if column_str is not none and column_str is string and column_str %}
+    {% if obj is not none and obj is string and obj %}
 
-        {%- if column_str | first == "!" -%}
+        {%- if obj | first == "!" -%}
 
             {%- do return(true) -%}
         {%- else -%}
 
             {%- do return(false) -%}
-        {%- endif -%
+        {%- endif -%}
     {%- else -%}
         {%- do return(false) -%}
     {%- endif -%}
