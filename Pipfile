@@ -3,6 +3,13 @@ name = "pypi"
 url = "https://pypi.org/simple"
 verify_ssl = true
 
+[dev-packages]
+pytest = "*"
+pytest-xdist = "*"
+pytest-clarity = "==0.3.0a0"
+invoke = "*"
+bump2version = "*"
+
 [packages]
 urllib3 = "==1.24.3"
 requests = "==2.22.0"
@@ -18,12 +25,6 @@ Pygments = "==2.6.1"
 pymdown-extensions = "==7.1"
 "ruamel.yaml" = "*"
 dbt = "==0.19.0"
-pytest = "*"
-pytest-xdist = "*"
-pytest-clarity = "==1.0.1"
-invoke = "*"
-bump2version = "*"
-pexpect = "*"
 
 [requires]
 python_version = "3.8"
