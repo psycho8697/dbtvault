@@ -6,10 +6,10 @@ import shutil
 import sys
 from hashlib import md5, sha256
 from pathlib import Path
-from subprocess import PIPE, Popen, STDOUT
 from typing import List
 
 import pandas as pd
+import pexpect
 import yaml
 from _pytest.fixtures import FixtureRequest
 from behave.model import Table
@@ -346,23 +346,17 @@ def run_dbt_command(command) -> str:
     """
 
     if 'dbt' not in command and isinstance(command, list):
-        dbt_cmd = ['dbt']
-        dbt_cmd.extend(command)
-        command = dbt_cmd
+        command = ['dbt'] + command
     elif 'dbt' not in command and isinstance(command, str):
         command = ['dbt', command]
 
-    p = Popen(command, stdout=PIPE, stderr=STDOUT)
+    joined_command = " ".join(command)
+    test.logger.log(msg=f"Running with dbt command: {joined_command}", level=logging.INFO)
 
-    stdout, _ = p.communicate()
-
-    p.wait()
-
-    logs = stdout.decode('utf-8')
-
-    test.logger.log(msg=f"Running with dbt command: {' '.join(command)}", level=logging.DEBUG)
-
-    test.logger.log(msg=logs, level=logging.DEBUG)
+    child = pexpect.spawn(command=joined_command, cwd=test.TEST_PROJECT_ROOT, encoding="utf-8")
+    child.logfile_read = sys.stdout
+    logs = child.read()
+    child.close()
 
     return logs
 

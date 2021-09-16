@@ -23,6 +23,7 @@ pytest-xdist = "*"
 pytest-clarity = "==1.0.1"
 invoke = "*"
 bump2version = "*"
+pexpect = "*"
 
 [requires]
 python_version = "3.8"
