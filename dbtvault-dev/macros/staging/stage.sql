@@ -13,19 +13,21 @@
 
 {%- macro default__stage(include_source_columns, source_model, hashed_columns, derived_columns, ranked_columns) -%}
 
+{%- set cast_constants_as = config.get('cast_constants_as', default='VARCHAR') -%}
+
 {{ dbtvault.prepend_generated_by() }}
 
 {% if (source_model is none) and execute %}
 
     {%- set error_message -%}
     Staging error: Missing source_model configuration. A source model name must be provided.
-    e.g. 
+    e.g.
     [REF STYLE]
     source_model: model_name
     OR
     [SOURCES STYLE]
     source_model:
-        source_name: source_table_name"
+        source_name: source_table_name
     {%- endset -%}
 
     {{- exceptions.raise_compiler_error(error_message) -}}
@@ -86,7 +88,9 @@ derived_columns AS (
 
     SELECT
 
-    {{ dbtvault.derive_columns(source_relation=source_relation, columns=derived_columns) | indent(4) }}
+    {{ dbtvault.derive_columns(source_relation=source_relation,
+                               columns=derived_columns,
+                               cast_constants_as=cast_constants_as) | indent(4) }}
 
     FROM {{ last_cte }}
     {%- set last_cte = "derived_columns" -%}

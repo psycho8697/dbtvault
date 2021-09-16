@@ -10,7 +10,7 @@
 
         {%- if column_str | first == "!" -%}
         
-            {{- return("'" ~ column_str[1:] ~ "'") -}}
+            {{- return("'{}'".format(column_str[1:])) -}}
         
         {%- else -%}
         
