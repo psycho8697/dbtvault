@@ -31,3 +31,20 @@
     {%- endif -%}
 
 {%- endmacro -%}
+
+{%- macro is_constant(obj) -%}
+
+    {% if obj is not none and obj is string and obj %}
+
+        {%- if obj | first == "!" -%}
+
+            {%- do return(true) -%}
+        {%- else -%}
+
+            {%- do return(false) -%}
+        {%- endif -%}
+    {%- else -%}
+        {%- do return(false) -%}
+    {%- endif -%}
+}
+{%- endmacro -%}
