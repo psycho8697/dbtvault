@@ -50,27 +50,86 @@ WITH source_data AS (
 
 {% if dbtvault.is_any_incremental() %}
 
-latest_records AS (
+    latest_records AS (
 
-    SELECT {{ dbtvault.prefix(rank_cols, 'a', alias_target='target') }},
-           RANK() OVER (
-               PARTITION BY {{ dbtvault.prefix([src_pk], 'a') }}
-               ORDER BY {{ dbtvault.prefix([src_ldts], 'a') }} DESC
-           ) AS rank
-    FROM {{ this }} AS a
-    JOIN (
-        SELECT DISTINCT {{ dbtvault.prefix([src_pk], 'source_data') }}
-        FROM source_data
-    ) AS source_records
-    ON {{ dbtvault.prefix([src_pk], 'current_records') }} = {{ dbtvault.prefix([src_pk], 'source_records') }}
-    QUALIFY rank = 1
-),
+        SELECT {{ dbtvault.prefix(rank_cols, 'a', alias_target='target') }}
+        FROM (
+            SELECT {{ dbtvault.prefix(rank_cols, 'current_records', alias_target='target') }},
+            RANK() OVER (
+            PARTITION BY {{ dbtvault.prefix([src_pk], 'current_records') }}
+            ORDER BY {{ dbtvault.prefix([src_ldts], 'current_records') }} DESC
+            ) AS rank
+            FROM {{ this }} AS current_records
+            JOIN (
+            SELECT DISTINCT {{ dbtvault.prefix([src_pk], 'source_data') }}
+            FROM source_data
+            ) AS source_records
+            ON {{ dbtvault.prefix([src_pk], 'current_records') }} = {{ dbtvault.prefix([src_pk], 'source_records') }}
+            {%- if out_of_sequence is not none %}
+            WHERE {{ dbtvault.prefix([src_ldts], 'current_records') }} < {{ dbtvault.date_timestamp(out_of_sequence) }}
+            {%- endif %}
+            ) a
+        WHERE a.rank = 1
+    ),
 
-out_of_sequence_inserts AS (
-  SELECT {{ dbtvault.prefix(source_cols, 'c') }} FROM matching_xts_stg_records AS c
-  UNION
-  SELECT * FROM records_from_sat
-),
+    {%- if out_of_sequence is not none %}
+
+    sat_records_before_insert_date AS (
+      SELECT DISTINCT
+        {{ dbtvault.prefix(source_cols, 'a') }},
+        {{ dbtvault.prefix([src_ldts], 'b') }} AS STG_LOAD_DATE,
+        {{ dbtvault.prefix([src_eff], 'b') }} AS STG_EFFECTIVE_FROM
+      FROM {{ this }} AS a
+      LEFT JOIN {{ ref(source_model) }} AS b ON {{ dbtvault.prefix([src_pk], 'a') }} = {{ dbtvault.prefix([src_pk], 'b') }}
+      WHERE {{ dbtvault.prefix([src_ldts], 'a') }} < {{ dbtvault.date_timestamp(out_of_sequence) }}
+    ),
+
+    matching_xts_stg_records AS (
+      SELECT
+        {{ dbtvault.prefix(source_cols, 'b') }},
+        {{ dbtvault.prefix([src_ldts], 'a') }} AS XTS_LOAD_DATE,
+        LEAD({{ dbtvault.prefix([src_ldts], 'a') }}) OVER(
+            PARTITION BY {{ dbtvault.prefix([src_pk], 'a') }}
+            ORDER BY {{ dbtvault.prefix([src_ldts], 'a') }}) AS NEXT_RECORD_DATE,
+        LAG({{ dbtvault.prefix([src_hashdiff], 'a') }}) OVER(
+            PARTITION BY {{ dbtvault.prefix([src_pk], 'a') }}
+            ORDER BY {{ dbtvault.prefix([src_ldts], 'a') }}) AS PREV_RECORD_HASHDIFF,
+        LEAD({{ dbtvault.prefix([src_hashdiff], 'a') }}) OVER(
+            PARTITION BY {{ dbtvault.prefix([src_pk], 'a') }}
+            ORDER BY {{ dbtvault.prefix([src_ldts], 'a') }}) AS NEXT_RECORD_HASHDIFF
+      FROM {{ ref(xts_model) }} AS a
+      INNER JOIN source_data AS b
+      ON {{ dbtvault.prefix([src_pk], 'a') }} = {{ dbtvault.prefix([src_pk], 'b') }}
+      WHERE {{ dbtvault.prefix([sat_name_col], 'a') }} = '{{ this.identifier }}'
+      QUALIFY ((PREV_RECORD_HASHDIFF != {{ dbtvault.prefix([src_hashdiff], 'b') }}
+               AND PREV_RECORD_HASHDIFF = NEXT_RECORD_HASHDIFF)
+               OR (PREV_RECORD_HASHDIFF != {{ dbtvault.prefix([src_hashdiff], 'b') }}
+               AND NEXT_RECORD_HASHDIFF != {{ dbtvault.prefix([src_hashdiff], 'b') }}))
+      AND {{ dbtvault.prefix([src_ldts], 'b') }}
+      BETWEEN XTS_LOAD_DATE
+      AND NEXT_RECORD_DATE
+      ORDER BY {{ src_pk }}, XTS_LOAD_DATE
+    ),
+
+    records_from_sat AS (
+      SELECT
+        {{ dbtvault.prefix([src_pk, src_hashdiff], 'd')}},
+        {{ dbtvault.prefix(src_payload, 'd') }},
+        c.NEXT_RECORD_DATE AS {{ src_ldts }},
+        c.NEXT_RECORD_DATE AS {{ src_eff }},
+        {{ dbtvault.prefix([src_source], 'd') }}
+      FROM matching_xts_stg_records AS c
+      INNER JOIN sat_records_before_insert_date AS d
+      ON {{dbtvault.prefix([src_pk], 'c') }} = {{dbtvault.prefix([src_pk], 'd') }}
+    ),
+
+    out_of_sequence_inserts AS (
+      SELECT {{ dbtvault.prefix(source_cols, 'c') }} FROM matching_xts_stg_records AS c
+      UNION
+      SELECT * FROM records_from_sat
+    ),
+    {%- endif %}
+
 {%- endif %}
 
 records_to_insert AS (
