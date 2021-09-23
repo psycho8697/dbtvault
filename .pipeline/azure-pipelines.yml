@@ -30,10 +30,10 @@ stages:
             displayName: "Drop all custom schemas"
           - script: inv run-harness-tests -p snowflake
             displayName: "Run harness tests"
-          - script: inv run-macro-tests -p snowflake
-            displayName: "Run macro tests - Snowflake"
-            env:
-              PIPELINE_JOB: $(Agent.JobName)
+#          - script: inv run-macro-tests -p snowflake
+#            displayName: "Run macro tests - Snowflake"
+#            env:
+#              PIPELINE_JOB: $(Agent.JobName)
 
   - stage: 'integration_tests_snowflake'
     displayName: 'Run Integration Tests (Snowflake)'
