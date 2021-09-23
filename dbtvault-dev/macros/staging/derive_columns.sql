@@ -1,15 +1,23 @@
-{%- macro derive_columns(source_relation=none, columns=none) -%}
+{%- macro derive_columns(source_relation=none, columns=none, cast_constants_as=none) -%}
 
-    {{- adapter.dispatch('derive_columns', 'dbtvault')(source_relation=source_relation, columns=columns) -}}
+    {{- adapter.dispatch('derive_columns', 'dbtvault')(source_relation=source_relation,
+                                                       columns=columns,
+                                                       cast_constants_as=cast_constants_as) -}}
 
 {%- endmacro %}
 
-{%- macro default__derive_columns(source_relation=none, columns=none) -%}
+{%- macro default__derive_columns(source_relation=none, columns=none, cast_constants_as=none) -%}
 
 {%- set exclude_columns = [] -%}
 {%- set include_columns = [] -%}
 {%- set src_columns = [] -%}
 {%- set der_columns = [] -%}
+
+{%- if dbtvault.is_nothing(cast_constants_as) -%}
+    {%- set constant_cast = "VARCHAR" -%}
+{%- else -%}
+    {%- set constant_cast = cast_constants_as -%}
+{%- endif -%}
 
 {%- set source_cols = dbtvault.source_columns(source_relation=source_relation) -%}
 
@@ -24,18 +32,20 @@
                 {%- set column_str = dbtvault.as_constant(concat_component) -%}
                 {%- do column_list.append(column_str) -%}
             {%- endfor -%}
-            {% if target.type == 'bigquery' %}
-                {%- set concat = dbtvault.concat_ws(column_list, "||") -%}
-                {%- set concat_string = "({}) AS {}".format(concat, col) -%}
-            {% else %}
-                {% set concat_string = "CONCAT_WS(" ~ "'||', " ~ column_list | join(", ") ~ ") AS " ~ col %}
-            {% endif %}
+
+            {%- set concat_string = "CONCAT_WS('||', {}) AS {}".format(column_list | join(", "), col) -%}
 
             {%- do der_columns.append(concat_string) -%}
             {%- set exclude_columns = exclude_columns + columns[col] -%}
         {% else %}
             {%- set column_str = dbtvault.as_constant(columns[col]) -%}
-            {%- do der_columns.append(column_str ~ " AS " ~ col) -%}
+
+            {%- if dbtvault.is_constant(columns[col]) -%}
+                {%- do der_columns.append("CAST({} AS {}) AS {}".format(column_str, constant_cast, col)) -%}
+            {%- else -%}
+                {%- do der_columns.append("{} AS {}".format(column_str, col)) -%}
+            {%- endif -%}
+
             {%- do exclude_columns.append(col) -%}
         {% endif %}
 
