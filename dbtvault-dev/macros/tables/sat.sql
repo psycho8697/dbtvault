@@ -73,8 +73,6 @@ out_of_sequence_inserts AS (
 ),
 {%- endif %}
 
-{%- endif %}
-
 records_to_insert AS (
     SELECT DISTINCT {{ dbtvault.alias_all(source_cols, 'stage') }}
     FROM source_data AS stage
@@ -83,10 +81,10 @@ records_to_insert AS (
     ON {{ dbtvault.prefix([src_pk], 'latest_records', alias_target='target') }} = {{ dbtvault.prefix([src_pk], 'stage') }}
     WHERE {{ dbtvault.prefix([src_hashdiff], 'latest_records', alias_target='target') }} != {{ dbtvault.prefix([src_hashdiff], 'stage') }}
         OR {{ dbtvault.prefix([src_hashdiff], 'latest_records', alias_target='target') }} IS NULL
-    {% if out_of_sequence is not none -%}
-    UNION
-    SELECT * FROM out_of_sequence_inserts
-    {%- endif %}
+        {% if out_of_sequence is not none -%}
+        UNION
+        SELECT * FROM out_of_sequence_inserts
+        {%- endif %}
     {%- endif %}
 )
 
