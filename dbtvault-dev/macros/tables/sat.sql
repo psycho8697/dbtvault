@@ -124,7 +124,8 @@ WITH source_data AS (
     ),
 
     out_of_sequence_inserts AS (
-      SELECT {{ dbtvault.prefix(source_cols, 'c') }} FROM matching_xts_stg_records AS c
+      SELECT {{ dbtvault.prefix(source_cols, 'c') }}
+      FROM matching_xts_stg_records AS c
       UNION
       SELECT * FROM records_from_sat
     ),
