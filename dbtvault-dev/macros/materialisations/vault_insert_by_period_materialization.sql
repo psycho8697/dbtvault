@@ -6,15 +6,14 @@
     {%- set existing_relation = load_relation(this) -%}
     {%- set tmp_relation = make_temp_relation(this) -%}
 
-    {%- set timestamp_field = config.require('timestamp_field') -%}
+    {%- set target_timestamp_field = config.require('target_timestamp_field') -%}
+    {%- set ds_timestamp_field = config.get('date_source_timestamp_field', default=target_timestamp_field) -%}
     {%- set date_source_models = config.get('date_source_models', default=none) -%}
 
-    {%- set start_stop_dates = dbtvault.get_start_stop_dates(timestamp_field, date_source_models) | as_native -%}
+    {%- set start_stop_dates = dbtvault.get_start_stop_dates(ds_timestamp_field, date_source_models) | as_native -%}
 
     {%- set period = config.get('period', default='day') -%}
     {%- set to_drop = [] -%}
-
-    {% set adapter_type = dbtvault.get_adapter_type() %}
 
     {%- do dbtvault.check_placeholder(sql) -%}
 
@@ -25,11 +24,12 @@
 
     {% if existing_relation is none %}
 
-        {% set filtered_sql = dbtvault.replace_placeholder_with_period_filter(sql, timestamp_field,
-                                                                       start_stop_dates.start_date,
-                                                                       start_stop_dates.stop_date,
-                                                                       0, period) %}
+        {% set filtered_sql = dbtvault.replace_placeholder_with_period_filter(sql, target_timestamp_field,
+                                                                              start_stop_dates.start_date,
+                                                                              start_stop_dates.stop_date,
+                                                                              0, period) %}
         {% set build_sql = create_table_as(False, target_relation, filtered_sql) %}
+
         {% do to_drop.append(tmp_relation) %}
 
     {% elif existing_relation.is_view or full_refresh_mode %}
@@ -40,10 +40,10 @@
         {% do adapter.drop_relation(backup_relation) %}
         {% do adapter.rename_relation(target_relation, backup_relation) %}
 
-        {% set filtered_sql = dbtvault.replace_placeholder_with_period_filter(sql, timestamp_field,
-                                                                       start_stop_dates.start_date,
-                                                                       start_stop_dates.stop_date,
-                                                                       0, period) %}
+        {% set filtered_sql = dbtvault.replace_placeholder_with_period_filter(sql, target_timestamp_field,
+                                                                              start_stop_dates.start_date,
+                                                                              start_stop_dates.stop_date,
+                                                                              0, period) %}
         {% set build_sql = create_table_as(False, target_relation, filtered_sql) %}
 
         {% do to_drop.append(tmp_relation) %}
@@ -52,7 +52,7 @@
 
         {% set period_boundaries = dbtvault.get_period_boundaries(schema,
                                                                   target_relation.name,
-                                                                  timestamp_field,
+                                                                  target_timestamp_field,
                                                                   start_stop_dates.start_date,
                                                                   start_stop_dates.stop_date,
                                                                   period) %}
@@ -69,15 +69,12 @@
             {{ dbt_utils.log_info("Running for {} {} of {} ({}) [{}]".format(period, iteration_number, period_boundaries.num_periods, period_of_load, model.unique_id)) }}
 
             {% set tmp_relation = make_temp_relation(this) %}
-            {% set tmp_table_sql = dbtvault.get_period_filter_sql(target_cols_csv, sql, timestamp_field, period,
+            {% set tmp_table_sql = dbtvault.get_period_filter_sql(target_cols_csv, sql, target_timestamp_field, period,
                                                                   period_boundaries.start_timestamp,
                                                                   period_boundaries.stop_timestamp, i) %}
 
-            {# This call statement drops and then creates a temporary table #}
-            {# but MSSQL will fail to drop any temporary table created by a previous loop iteration #}
-            {# See MSSQL note and drop code below #}
             {% call statement() -%}
-                {{ create_table_as(True, tmp_relation, tmp_table_sql) }}
+                {{ dbt.create_table_as(True, tmp_relation, tmp_table_sql) }}
             {%- endcall %}
 
             {{ adapter.expand_target_column_types(from_relation=tmp_relation,
@@ -85,10 +82,10 @@
 
             {%- set insert_query_name = 'main-' ~ i -%}
             {% call statement(insert_query_name, fetch_result=True) -%}
-                INSERT INTO {{ target_relation }} ({{ target_cols_csv }})
+                insert into {{ target_relation }} ({{ target_cols_csv }})
                 (
-                    SELECT {{ target_cols_csv }}
-                    FROM {{ tmp_relation.include(schema=True) }}
+                    select {{ target_cols_csv }}
+                    from {{ tmp_relation.include(schema=True) }}
                 );
             {%- endcall %}
 
@@ -107,15 +104,6 @@
                                                                                               period_boundaries.num_periods,
                                                                                               period_of_load, rows_inserted,
                                                                                               model.unique_id)) }}
-
-            {% if adapter_type == "sqlserver" %}
-                {# In MSSQL a temporary table can only be dropped by the connection or session that created it #}
-                {# so drop it now before the commit below closes this session #}
-                {%- set drop_query_name = 'DROP_QUERY-' ~ i -%}
-                {% call statement(drop_query_name, fetch_result=True) -%}
-                    DROP TABLE {{ tmp_relation }};
-                {%- endcall %}
-            {%  endif %}
 
             {% do to_drop.append(tmp_relation) %}
             {% do adapter.commit() %}
