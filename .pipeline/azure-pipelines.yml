@@ -3,6 +3,7 @@ trigger:
   branches:
     include:
       - develop
+      - feat/dbt21
     exclude:
       - feat/*
 
